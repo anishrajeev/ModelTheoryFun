@@ -5,7 +5,6 @@ import Mathlib.ModelTheory.Semantics
 -- Lets define some cool models and theories
 open FirstOrder
 open FirstOrder.Language
-open FirstOrder.Language.Term
 open FirstOrder.Language.BoundedFormula
 
 -- Language with an ≤ and ≡ symbol, and 2 constants and thats it
@@ -29,7 +28,7 @@ def natStructure : language.Structure ℕ where
     | rel_symbols.lt =>
       have x := v (Fin.mk 0 (by simp))
       have y := v (Fin.mk 1 (by simp))
-      x ≤ y
+      x < y
 
 -- Rational Numbers Model
 def rationalStructure : language.Structure Rat where
@@ -42,7 +41,7 @@ def rationalStructure : language.Structure Rat where
     | rel_symbols.lt =>
       have x := v (Fin.mk 0 (by simp))
       have y := v (Fin.mk 1 (by simp))
-      x ≤ y
+      x < y
 
 /- I'm bored now; I want to define a theory now. What about defining DLO,
 and showing rationalStructure models it but not Natural?
@@ -112,4 +111,18 @@ def DLO_Theory : language.Theory := {antireflexive,
                                      no_endpoint_1,
                                      no_endpoint_2,
                                      density}
+
+instance : language.Structure Rat := rationalStructure
+instance : language.Structure ℕ := natStructure
+
+theorem ratAntiReflexive : antireflexive.Realize Rat := by
+  dsimp [Sentence.Realize, antireflexive, Formula.Realize]
+  intros x xltx
+  dsimp [BoundedFormula.Realize]
+  dsimp [BoundedFormula.Realize, Fin.snoc] at xltx
+  unfold Structure.RelMap at xltx
+  dsimp [instStructureLanguageRat] at xltx
+  exact Rat.lt_irrefl xltx
+
+
 end OrderedLang
