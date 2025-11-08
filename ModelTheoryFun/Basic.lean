@@ -2,6 +2,8 @@ import Mathlib.Data.Rat.Cast.Order
 import Mathlib.ModelTheory.Basic
 import Mathlib.ModelTheory.Syntax
 import Mathlib.ModelTheory.Semantics
+import Mathlib.Tactic.Linarith
+
 -- import Mathlib.Data.Rat.Order
 
 -- Lets define some cool models and theories
@@ -46,7 +48,7 @@ def rationalStructure : language.Structure Rat where
       x < y
 
 /- I'm bored now; I want to define a theory now. What about defining DLO,
-and showing rationalStructure models it but not Natural?
+and showing rationalStructure models it?
 -/
 
 /-
@@ -55,8 +57,10 @@ Linear order: ∀ x. ∀ y. (x < y) ∨ (y < x) ∨ (x ≡ y)
 Transitivity: ∀ x. ∀ y. ∀ z. ((x < y) ∧ (y < z)) → (x < z)
 No endpoint: ∀ x. ∃ y. x < y
 No endpoint: ∀ x. ∃ y. y < x
-Density: ∀ x. ∀ y. ∃ z. (x < z) ∧ (z < y)
+Density: ∀ x. ∀ y. x < y → (∃ z. (x < z) ∧ (z < y))
 -/
+
+#check @rel
 
 def antireflexive : language.Sentence :=
 all (imp (rel rel_symbols.lt (fun x => var (Sum.inr (Fin.mk 0 (by simp))))) falsum)
@@ -93,17 +97,13 @@ def no_endpoint_2 : language.Sentence :=
               | ⟨0, _⟩ => var (Sum.inr ⟨1, by simp⟩)
               | ⟨1, _⟩ => var (Sum.inr ⟨0, by simp⟩))
 def density : language.Sentence :=
-∀' ∀' ∃'
-  ∼ ((rel rel_symbols.lt
-          (fun x =>
-            match x with
-            | ⟨0, _⟩ => var (Sum.inr ⟨0, by simp⟩)
-            | ⟨1, _⟩ => var (Sum.inr ⟨2, by simp⟩))) ⟹
-  ∼ ((rel rel_symbols.lt
-          (fun x =>
-            match x with
-            | ⟨0, _⟩ => var (Sum.inr ⟨2, by simp⟩)
-            | ⟨1, _⟩ => var (Sum.inr ⟨1, by simp⟩)))))
+  ∀' ∀' (rel rel_symbols.lt (fun x => var (Sum.inr x)) ⟹
+  (∃' ∼ ((rel rel_symbols.lt (fun x => match x with
+                                      | 0 => var (Sum.inr 0)
+                                      | 1 => var (Sum.inr 2))) ⟹
+      ∼ (rel rel_symbols.lt (fun x => match x with
+                                      | 0 => var (Sum.inr 2)
+                                      | 1 => var (Sum.inr 1))))))
 
 def DLO_Theory : language.Theory := {antireflexive,
                                      linear_order,
@@ -115,7 +115,7 @@ def DLO_Theory : language.Theory := {antireflexive,
 instance : language.Structure Rat := rationalStructure
 instance : language.Structure ℕ := natStructure
 
-theorem ratantiReflexive : antireflexive.Realize Rat := by
+theorem ratAntireflexive : Rat ⊨ antireflexive := by
   dsimp [Sentence.Realize, antireflexive, Formula.Realize]
   intros x xltx
   dsimp [BoundedFormula.Realize]
@@ -123,21 +123,7 @@ theorem ratantiReflexive : antireflexive.Realize Rat := by
   unfold Structure.RelMap at xltx
   dsimp [instStructureLanguageRat] at xltx
   exact Rat.lt_irrefl xltx
-theorem ratTransitivity : transitivity.Realize Rat := by
-  rw [transitivity]
-  rw [Sentence.Realize]
-  intro x y z
-  rw [realize_imp]
-  intro h
-  rw [realize_not] at h
-  rw [realize_imp] at h
-  simp at h
-  cases h with
-  |intro hx hy =>
-  have hxy : x < y := hx
-  have hyz : y < z := hy
-  exact lt_trans hxy hyz
-theorem ratLinearOrder : linear_order.Realize Rat := by
+theorem ratLinearOrder : Rat ⊨ linear_order := by
   rw [linear_order]
   rw [Sentence.Realize]
   rw [Formula.Realize]
@@ -156,5 +142,49 @@ theorem ratLinearOrder : linear_order.Realize Rat := by
     cases smallhypothesis with
     | inl ans => exact ans
     | inr hc => exact (False.elim (hyx hc))
+theorem ratTransitivity : Rat ⊨ transitivity := by
+  rw [transitivity]
+  rw [Sentence.Realize]
+  intro x y z
+  rw [realize_imp]
+  intro h
+  rw [realize_not] at h
+  rw [realize_imp] at h
+  simp at h
+  cases h with
+  |intro hx hy =>
+  have hxy : x < y := hx
+  have hyz : y < z := hy
+  exact lt_trans hxy hyz
+theorem ratNoUpperBound : Rat ⊨ no_endpoint_1 := by
+  simp [no_endpoint_1, Sentence.Realize, Formula.Realize]
+  intros x
+  have pf : x + 1 > x := by linarith
+  exact ⟨x + 1, pf⟩
+theorem ratNoLowerBound : Rat ⊨ no_endpoint_2 := by
+  simp [no_endpoint_2, Sentence.Realize, Formula.Realize]
+  intros x
+  have pf : x - 1 < x := by linarith
+  exact ⟨x - 1, pf⟩
+theorem ratDensity : Rat ⊨ density := by
+  simp [density, Sentence.Realize, Formula.Realize]
+  intro x y xy
+  have h : x < y := xy
+  have pf : x < (x + y)/2 ∧ (x + y)/2 < y := by
+    apply And.intro
+    case left => linarith
+    case right => linarith
+  exact ⟨(x + y)/2, pf⟩
 
+theorem ratIsDLO : Theory.Model Rat DLO_Theory := by
+  simp [DLO_Theory]
+  exact ⟨ratAntireflexive, ratLinearOrder, ratTransitivity,
+        ratNoUpperBound, ratNoLowerBound, ratDensity⟩
+
+/-
+  Finally done
+  What about types from mathlib4
+  Maybe express some types w/ final goal 2
+  prove atomicity and saturatedness
+-/
 end OrderedLang
