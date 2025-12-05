@@ -14,15 +14,14 @@ open FirstOrder.Language
 namespace TypeSpace
 
 variable {L : FirstOrder.Language} {T : L.Theory}
-
-def basis {n : ℕ} : Set (Set (T.CompleteType (Fin n))) := {X | ∃ φ, X = {p | φ ∈ p}}
+instance (n : ℕ) : TopologicalSpace (T.CompleteType (Fin n)) :=
+    TopologicalSpace.generateFrom {X | ∃ φ, X = {p | φ ∈ p}}
 def basicOpen {n : ℕ} (φ : L[[Fin n]].Sentence) : Set (T.CompleteType (Fin n)) :=
   {X : T.CompleteType (Fin n) | φ ∈ X}
 
-
-instance (n : ℕ) : TopologicalSpace (T.CompleteType (Fin n)) :=
-    TopologicalSpace.generateFrom (basis)
-lemma exists_separating_sets {n : ℕ} (x y : T.CompleteType (Fin n))
+lemma basicOpen_compl {n : ℕ} (T : L.Theory) (φ : L[[Fin n]].Sentence) :
+  basicOpen (T := T) φ.not = (basicOpen φ)ᶜ := by ext p ; exact p.not_mem_iff φ
+lemma disjoint_open_sets {n : ℕ} (x y : T.CompleteType (Fin n))
                          (φ : L[[Fin n]].Sentence)
                          (φ_inx_φ_niny : φ ∈ x.toTheory ∧ φ ∉ y.toTheory) :
                          ∃ u v : Set (T.CompleteType (Fin n)), IsOpen u ∧ IsOpen v ∧
@@ -45,6 +44,7 @@ lemma exists_separating_sets {n : ℕ} (x y : T.CompleteType (Fin n))
                               intro Γ
                               contrapose!
                               exact (Γ.not_mem_iff φ).1
+
 instance {n : ℕ} : T2Space (T.CompleteType (Fin n)) := by
   constructor
   intro x y xneqy
@@ -59,7 +59,7 @@ instance {n : ℕ} : T2Space (T.CompleteType (Fin n)) := by
   · rw [Set.subset_def] at x_nsub_y
     push_neg at x_nsub_y
     rcases x_nsub_y with ⟨φ, φ_x_y⟩
-    exact exists_separating_sets x y φ φ_x_y
+    exact disjoint_open_sets x y φ φ_x_y
   · rw [Set.subset_def] at y_nsub_x
     push_neg at y_nsub_x
     rcases y_nsub_x with ⟨φ, φ_x_y⟩
@@ -69,10 +69,6 @@ instance {n : ℕ} : T2Space (T.CompleteType (Fin n)) := by
       · intro nφy
         exact (y.not_mem_iff φ).1 nφy φ_x_y.1
     exact exists_separating_sets x y φ.not swapped
-
-lemma basicOpen_compl {n : ℕ} (T : L.Theory) (φ : L[[Fin n]].Sentence) :
-  basicOpen (T := T) φ.not = (basicOpen φ)ᶜ := by ext p ; exact p.not_mem_iff φ
-
 instance {n : ℕ} : CompactSpace (T.CompleteType (Fin n)) := by
   constructor
   rw[isCompact_iff_ultrafilter_le_nhds]
@@ -113,7 +109,6 @@ instance {n : ℕ} : CompactSpace (T.CompleteType (Fin n)) := by
     rw [Filter.le_principal_iff]
     obtain ⟨_, rfl⟩ := s_in.2
     exact s_in.1
-
 instance {n : ℕ} : BaireSpace (T.CompleteType (Fin n)) :=
   BaireSpace.of_t2Space_locallyCompactSpace
 
