@@ -11,7 +11,7 @@ import Mathlib.Topology.Baire.LocallyCompactRegular
 open FirstOrder
 open FirstOrder.Language
 
-namespace StoneSpace
+namespace TypeSpace
 
 variable {L : FirstOrder.Language} {T : L.Theory}
 
@@ -116,4 +116,5 @@ instance {n : ℕ} : CompactSpace (T.CompleteType (Fin n)) := by
 
 instance {n : ℕ} : BaireSpace (T.CompleteType (Fin n)) :=
   BaireSpace.of_t2Space_locallyCompactSpace
-end StoneSpace
+
+end TypeSpace
