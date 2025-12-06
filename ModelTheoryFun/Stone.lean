@@ -5,74 +5,79 @@ import Mathlib.ModelTheory.Satisfiability
 import Mathlib.ModelTheory.Types
 import Mathlib.Topology.Basic
 import Mathlib.Topology.Order
+import Mathlib.Topology.Bases
 import Mathlib.Topology.Separation.Hausdorff
+import Mathlib.Topology.Separation.Profinite
+import Mathlib.Topology.Connected.Separation
 import Mathlib.Topology.Baire.LocallyCompactRegular
 
 open FirstOrder
 open FirstOrder.Language
+open TopologicalSpace
 
 namespace TypeSpace
 
 variable {L : FirstOrder.Language} {T : L.Theory}
 
-def basis {n : ℕ} : Set (Set (T.CompleteType (Fin n))) := {X | ∃ φ, X = {p | φ ∈ p}}
+def sub_basis {n : ℕ} : Set (Set (T.CompleteType (Fin n))) := {X | ∃ φ, X = {p | φ ∈ p}}
 def BasicOpen {n : ℕ} (φ : L[[Fin n]].Sentence) : Set (T.CompleteType (Fin n)) :=
   {X : T.CompleteType (Fin n) | φ ∈ X}
 
-instance (n : ℕ) : TopologicalSpace (T.CompleteType (Fin n)) :=
-    TopologicalSpace.generateFrom (basis)
-
-lemma ExistsSeperatingSets {n : ℕ} (x y : T.CompleteType (Fin n))
-                         (φ : L[[Fin n]].Sentence)
-                         (φ_inx_φ_niny : φ ∈ x.toTheory ∧ φ ∉ y.toTheory) :
-                         ∃ u v : Set (T.CompleteType (Fin n)), IsOpen u ∧ IsOpen v ∧
-                         x ∈ u ∧ y ∈ v ∧ Disjoint u v := by
-                          let B_φ : Set (T.CompleteType (Fin n)) := {X | φ ∈ X}
-                          let B_nφ : Set (T.CompleteType (Fin n)) := {X | φ.not ∈ X}
-                          refine ⟨B_φ, B_nφ, ?_, ?_, ?_, ?_, ?_⟩
-                          · apply TopologicalSpace.GenerateOpen.basic
-                            dsimp[basis, B_φ]
-                            use φ
-                          · apply TopologicalSpace.GenerateOpen.basic
-                            dsimp[basis, B_φ]
-                            use φ.not
-                          · dsimp [B_φ]
-                            exact φ_inx_φ_niny.1
-                          · dsimp [B_nφ]
-                            exact (y.isMaximal.2 φ).resolve_left φ_inx_φ_niny.2
-                          · rw[Set.disjoint_left]
-                            · dsimp [B_φ, B_nφ]
-                              intro Γ
-                              contrapose!
-                              exact (Γ.not_mem_iff φ).1
-lemma basic_open_compl {n : ℕ} (T : L.Theory) (φ : L[[Fin n]].Sentence) :
-  BasicOpen (T := T) φ.not = (BasicOpen φ)ᶜ := by ext p ; exact p.not_mem_iff φ
-
-instance {n : ℕ} : T2Space (T.CompleteType (Fin n)) := by
+lemma finite_inter {n : ℕ} : FiniteInter (α := T.CompleteType (Fin n)) sub_basis := by
   constructor
-  intro x y xneqy
-  have xT_neq_yT : x.toTheory ≠ y.toTheory := by
-    contrapose! xneqy
-    cases x
-    cases y
-    simp_all
-  simp at xT_neq_yT
-  rw[Set.Subset.antisymm_iff, not_and_or] at xT_neq_yT
-  rcases xT_neq_yT with x_nsub_y | y_nsub_x
-  · rw [Set.subset_def] at x_nsub_y
-    push_neg at x_nsub_y
-    rcases x_nsub_y with ⟨φ, φ_x_y⟩
-    exact ExistsSeperatingSets x y φ φ_x_y
-  · rw [Set.subset_def] at y_nsub_x
-    push_neg at y_nsub_x
-    rcases y_nsub_x with ⟨φ, φ_x_y⟩
-    have swapped : φ.not ∈ x ∧ φ.not ∉ y := by
-      constructor
-      · exact (x.not_mem_iff φ).2 φ_x_y.2
-      · intro nφy
-        exact (y.not_mem_iff φ).1 nφy φ_x_y.1
-    exact ExistsSeperatingSets x y φ.not swapped
+  · use ⊤
+    ext p
+    simp
+    exact Theory.CompleteType.mem_of_models p (fun M v xs a ↦ a)
+  · rintro s ⟨φ, rfl⟩ t ⟨ψ, rfl⟩
+    use φ ⊓ ψ
+    ext p
+    simp
+    simp_rw[← SetLike.mem_coe, p.isMaximal.mem_iff_models (φ ⊓ ψ), p.isMaximal.mem_iff_models φ,
+            p.isMaximal.mem_iff_models ψ]
+    simp only [Theory.models_sentence_iff]
+    constructor
+    · rintro ⟨h₀, h₁⟩ M
+      exact Formula.realize_inf.2 ⟨h₀ M, h₁ M⟩
+    · intro h
+      rw [←forall_and]
+      intro M
+      exact Formula.realize_inf.1 (h M)
+lemma basic_open_compl {n : ℕ} (T : L.Theory) (φ : L[[Fin n]].Sentence) :
+                       BasicOpen (T := T) φ.not =
+    (BasicOpen φ)ᶜ := by ext p ; exact p.not_mem_iff φ
 
+instance (n : ℕ) : TopologicalSpace (T.CompleteType (Fin n)) := generateFrom (sub_basis)
+instance {n : ℕ} : T0Space (T.CompleteType (Fin n)) := by
+  rw [t0Space_iff_inseparable]
+  intro x y eq
+  apply SetLike.ext
+  intro φ
+  replace eq := inseparable_iff_forall_isOpen.1 eq
+  have o : IsOpen (X := (T.CompleteType (Fin n))) (BasicOpen φ) := by
+    apply TopologicalSpace.GenerateOpen.basic
+    use φ ; trivial
+  exact eq (BasicOpen φ) o
+instance {n : ℕ} : TotallySeparatedSpace (T.CompleteType (Fin n)) := by
+  apply totallySeparatedSpace_of_t0_of_basis_clopen
+  have h := isTopologicalBasis_of_subbasis_of_finiteInter
+            (α := T.CompleteType (Fin n)) (s := sub_basis) (by trivial) finite_inter
+  apply IsTopologicalBasis.of_isOpen_of_subset
+  · intro _ p ; exact p.2
+  · exact h
+  · intro p q
+    obtain ⟨φ, b⟩ := q
+    constructor
+    · have h : IsOpen pᶜ := by
+        have q : p = BasicOpen φ := b
+        rw[q, ←basic_open_compl]
+        apply TopologicalSpace.GenerateOpen.basic
+        exact ⟨φ.not, by trivial⟩
+      rw[←compl_compl p]
+      exact isClosed_compl_iff.2 h
+    · apply TopologicalSpace.GenerateOpen.basic
+      use φ
+instance {n : ℕ} : T2Space (T.CompleteType (Fin n)) := TotallySeparatedSpace.t2Space
 instance {n : ℕ} : CompactSpace (T.CompleteType (Fin n)) := by
   constructor
   rw[isCompact_iff_ultrafilter_le_nhds]
@@ -107,14 +112,12 @@ instance {n : ℕ} : CompactSpace (T.CompleteType (Fin n)) := by
   use p
   constructor
   · trivial
-  · rw [TopologicalSpace.nhds_generateFrom]
+  · rw [nhds_generateFrom]
     apply le_iInf₂
     intro _ s_in
     rw [Filter.le_principal_iff]
     obtain ⟨_, rfl⟩ := s_in.2
     exact s_in.1
-
-instance {n : ℕ} : BaireSpace (T.CompleteType (Fin n)) :=
-  BaireSpace.of_t2Space_locallyCompactSpace
+instance {n : ℕ} : BaireSpace (T.CompleteType (Fin n)) := BaireSpace.of_t2Space_locallyCompactSpace
 
 end TypeSpace
