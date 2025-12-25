@@ -10,6 +10,7 @@ import Mathlib.Topology.Separation.Hausdorff
 import Mathlib.Topology.Separation.Profinite
 import Mathlib.Topology.Connected.Separation
 import Mathlib.Topology.Baire.LocallyCompactRegular
+import Mathlib.Topology.Gdelta.Basic
 
 open FirstOrder
 open FirstOrder.Language
@@ -19,105 +20,175 @@ namespace TypeSpace
 
 variable {L : FirstOrder.Language} {T : L.Theory}
 
-def sub_basis {n : ℕ} : Set (Set (T.CompleteType (Fin n))) := {X | ∃ φ, X = {p | φ ∈ p}}
+def basis {n : ℕ} : Set (Set (T.CompleteType (Fin n))) := {U | ∃ φ, U = {s | φ ∈ s}}
 def BasicOpen {n : ℕ} (φ : L[[Fin n]].Sentence) : Set (T.CompleteType (Fin n)) :=
-  {X : T.CompleteType (Fin n) | φ ∈ X}
+  {s : T.CompleteType (Fin n) | φ ∈ s}
 
-lemma finite_inter {n : ℕ} : FiniteInter (α := T.CompleteType (Fin n)) sub_basis := by
+lemma finite_inter {n : ℕ} : FiniteInter (α := T.CompleteType (Fin n)) basis := by
   constructor
   · use ⊤
-    ext p
+    ext x
     simp
-    exact Theory.CompleteType.mem_of_models p (fun M v xs a ↦ a)
+    exact Theory.CompleteType.mem_of_models x (fun _ _ _ a ↦ a)
   · rintro s ⟨φ, rfl⟩ t ⟨ψ, rfl⟩
     use φ ⊓ ψ
-    ext p
+    ext t
     simp
-    simp_rw[← SetLike.mem_coe, p.isMaximal.mem_iff_models (φ ⊓ ψ), p.isMaximal.mem_iff_models φ,
-            p.isMaximal.mem_iff_models ψ]
-    simp only [Theory.models_sentence_iff]
+    simp_rw[← SetLike.mem_coe, t.isMaximal.mem_iff_models (φ ⊓ ψ), t.isMaximal.mem_iff_models φ,
+            t.isMaximal.mem_iff_models ψ, Theory.models_sentence_iff]
     constructor
-    · rintro ⟨h₀, h₁⟩ M
-      exact Formula.realize_inf.2 ⟨h₀ M, h₁ M⟩
-    · intro h
+    · rintro ⟨a, b⟩ M
+      exact Formula.realize_inf.2 ⟨a M, b M⟩
+    · intro a
       rw [←forall_and]
       intro M
-      exact Formula.realize_inf.1 (h M)
-lemma basic_open_compl {n : ℕ} (T : L.Theory) (φ : L[[Fin n]].Sentence) :
-                       BasicOpen (T := T) φ.not =
-    (BasicOpen φ)ᶜ := by ext p ; exact p.not_mem_iff φ
+      exact Formula.realize_inf.1 (a M)
 
-instance (n : ℕ) : TopologicalSpace (T.CompleteType (Fin n)) := generateFrom (sub_basis)
+lemma basic_open_compl {n : ℕ} (T : L.Theory) (φ : L[[Fin n]].Sentence) :
+                       BasicOpen (T := T) φ.not = (BasicOpen φ)ᶜ :=
+                       by ext p ; exact p.not_mem_iff φ
+
+instance (n : ℕ) : TopologicalSpace (T.CompleteType (Fin n)) := generateFrom basis
+
 instance {n : ℕ} : T0Space (T.CompleteType (Fin n)) := by
   rw [t0Space_iff_inseparable]
-  intro x y eq
+  intro x y a
   apply SetLike.ext
   intro φ
-  replace eq := inseparable_iff_forall_isOpen.1 eq
-  have o : IsOpen (X := (T.CompleteType (Fin n))) (BasicOpen φ) := by
+  replace h := inseparable_iff_forall_isOpen.1 a
+  have b : IsOpen (X := (T.CompleteType (Fin n))) (BasicOpen φ) := by
     apply TopologicalSpace.GenerateOpen.basic
     use φ ; trivial
-  exact eq (BasicOpen φ) o
+  exact h (BasicOpen φ) b
+
 instance {n : ℕ} : TotallySeparatedSpace (T.CompleteType (Fin n)) := by
   apply totallySeparatedSpace_of_t0_of_basis_clopen
-  have h := isTopologicalBasis_of_subbasis_of_finiteInter
-            (α := T.CompleteType (Fin n)) (s := sub_basis) (by trivial) finite_inter
+  have a := isTopologicalBasis_of_subbasis_of_finiteInter
+            (α := T.CompleteType (Fin n)) (s := basis) (by trivial) finite_inter
   apply IsTopologicalBasis.of_isOpen_of_subset
-  · intro _ p ; exact p.2
-  · exact h
-  · intro p q
-    obtain ⟨φ, b⟩ := q
+  · intro _ h ; exact h.2
+  · exact a
+  · intro s ⟨φ, b⟩
     constructor
-    · have h : IsOpen pᶜ := by
-        have q : p = BasicOpen φ := b
-        rw[q, ←basic_open_compl]
+    · have h : IsOpen sᶜ := by
+        replace b : s = BasicOpen φ := b
+        rw[b, ←basic_open_compl]
         apply TopologicalSpace.GenerateOpen.basic
         exact ⟨φ.not, by trivial⟩
-      rw[←compl_compl p]
+      rw[←compl_compl s]
       exact isClosed_compl_iff.2 h
-    · apply TopologicalSpace.GenerateOpen.basic
-      use φ
+    · apply TopologicalSpace.GenerateOpen.basic ; use φ
+
+
+
 instance {n : ℕ} : T2Space (T.CompleteType (Fin n)) := TotallySeparatedSpace.t2Space
+
 instance {n : ℕ} : CompactSpace (T.CompleteType (Fin n)) := by
   constructor
   rw[isCompact_iff_ultrafilter_le_nhds]
-  intros F hf_ultra
-  let pTheory : L[[Fin n]].Theory := {φ | BasicOpen φ ∈ F}
-  have p_isConsistentWith : (L.lhomWithConstants (Fin n)).onTheory T ⊆ pTheory := by
-    intro φ φinT
-    have uni : BasicOpen (T := T) φ = Set.univ := by
-      ext h
+  intros F _
+  let x : L[[Fin n]].Theory := {φ | BasicOpen φ ∈ F}
+  have a : (L.lhomWithConstants (Fin n)).onTheory T ⊆ x := by
+    intro φ a
+    have b : BasicOpen (T := T) φ = Set.univ := by
+      ext y
       simp [BasicOpen, Set.mem_setOf_eq, Set.mem_univ, iff_true]
-      exact h.subset φinT
-    rw[Set.mem_setOf_eq, uni]
+      exact y.subset a
+    rw[Set.mem_setOf_eq, b]
     exact Filter.univ_mem
-  have p_isMaximal : Theory.IsMaximal pTheory := by
+  have b : Theory.IsMaximal x := by
     rw[Theory.IsMaximal]
     constructor
     · rw[Theory.isSatisfiable_iff_isFinitelySatisfiable, Theory.IsFinitelySatisfiable]
-      intro φᵢ h_subset
-      have in_uf : ∀ φ ∈ φᵢ, BasicOpen φ ∈ F.toFilter := by
-        intro φ φ_in_finset
-        exact h_subset φ_in_finset
-      rw[←Filter.biInter_finset_mem φᵢ] at in_uf
-      obtain ⟨T, T_inter⟩ := F.neBot.nonempty_of_mem in_uf
-      have subset : SetLike.coe φᵢ ⊆ T.toTheory := by rwa[Set.mem_iInter₂] at T_inter
-      exact Theory.IsSatisfiable.mono T.isMaximal'.1 subset
+      intro φᵢ a
+      have b : ∀ φ ∈ φᵢ, BasicOpen φ ∈ F.toFilter := by
+        intro _ b
+        exact a b
+      rw[←Filter.biInter_finset_mem φᵢ] at b
+      obtain ⟨y, c⟩ := F.neBot.nonempty_of_mem b
+      have d : SetLike.coe φᵢ ⊆ y.toTheory := by rwa[Set.mem_iInter₂] at c
+      exact Theory.IsSatisfiable.mono y.isMaximal'.1 d
     · intro φ
-      rcases Ultrafilter.mem_or_compl_mem F (BasicOpen φ) with  φ_in | φ_nin
-      · exact Or.inl φ_in
-      · rw[←basic_open_compl T φ] at φ_nin
-        exact Or.inr φ_nin
-  let p : T.CompleteType (Fin n) := ⟨pTheory, p_isConsistentWith, p_isMaximal⟩
+      rcases Ultrafilter.mem_or_compl_mem F (BasicOpen φ) with  a | b
+      · exact Or.inl a
+      · rw[←basic_open_compl T φ] at b
+        exact Or.inr b
+  let p : T.CompleteType (Fin n) := ⟨x, a, b⟩
   use p
   constructor
   · trivial
   · rw [nhds_generateFrom]
     apply le_iInf₂
-    intro _ s_in
+    intro _ a
     rw [Filter.le_principal_iff]
-    obtain ⟨_, rfl⟩ := s_in.2
-    exact s_in.1
+    obtain ⟨_, rfl⟩ := a.2
+    exact a.1
+
 instance {n : ℕ} : BaireSpace (T.CompleteType (Fin n)) := BaireSpace.of_t2Space_locallyCompactSpace
 
 end TypeSpace
+
+namespace Canvas
+
+/-
+Plan:
+We are working in the context of a language L and theory T
+
+Take the meagre set A and split it into its closed countable nowhere dense sets A = ∪ Fᵢ
+Note that Uᵢ := (Fᵢ)ᶜ is open and dense
+By Baire Category, G := ∩ Uᵢ is Gδ and dense
+Also, define Vₙ := U₁ ∩ … ∩ Uₙ (this is open and dense)
+We also know that G avoids every type in A by construction
+
+
+We then define a new language L' = L ∪ {cᵢ : i ∈ ℕ}
+We will have formulas that are free in n variables in L'
+This is technically going to be implemented as L'[[Fin n]]
+
+-/
+
+variable {L : FirstOrder.Language} {T : L.Theory} {n : ℕ}
+
+def countable_language (L : Language) : Prop :=
+          ∀ n : ℕ, Countable (L.Functions n) ∧ Countable (L.Relations n)
+
+def omits_type (M : T.ModelType) (p : T.CompleteType (Fin n)) : Prop := by
+  have h := T.realizedTypes (α := Fin n) M
+  #check T.realizedTypes (α := Fin n) M
+  exact p ∉ h
+
+abbrev ExpandedLanguage := L[[ℕ]]
+local notation "L'" => @ExpandedLanguage L
+def toL' : L →ᴸ L' := L.lhomWithConstants ℕ
+local notation "T'" => toL'.onTheory T
+
+variable (φ : (L').Sentence)
+
+def henkin_set (φ : L'[[Fin n]].Sentence) : Set ((T').CompleteType (Fin n)) :=
+  have φe : L'[[Fin n]].Sentence := by
+    have φ' := BoundedFormula.constantsVarsEquiv φ
+    have φ' := BoundedFormula.relabelEquiv (Equiv.sumComm (Fin n) Empty) φ'
+    have φ' := Formula.iExs (Fin n) φ'
+    exact LHom.onSentence (lhomWithConstants L' (Fin n)) φ'
+  have φc : (Fin n → ℕ) → L'[[Fin n]].Sentence := by
+    intro c
+    have φ' := BoundedFormula.constantsVarsEquiv φ
+    have φ' := BoundedFormula.relabelEquiv (Equiv.sumEmpty (Fin n) Empty) φ'
+    have φ' := BoundedFormula.subst φ' (fun a ↦ Constants.term ((L).con (c a))) (β := Empty)
+    exact LHom.onSentence (lhomWithConstants L' (Fin n)) φ'
+  {p : (T').CompleteType (Fin n) | φe ∈ p → ∃ c : (Fin n → ℕ), (φc c) ∈ p}
+
+def dense : ∀ φ : L'[[Fin n]].Sentence, Dense (X := (T').CompleteType (Fin n)) (henkin_set φ) := by
+  intros φ x
+  apply mem_closure_iff.mpr
+  intro o ho hx
+  dsimp[IsOpen] at ho
+  #check IsTopologicalBasis.dense_iff
+  sorry
+
+
+theorem Omitting_Types_Theorem (c : countable_language L) (s : Set (T.CompleteType (Fin n)))
+                               (p : IsMeagre s) : ∃ M : T.ModelType, ∀ x ∈ s, omits_type M x := by
+  sorry
+
+end Canvas
